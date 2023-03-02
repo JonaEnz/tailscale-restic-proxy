@@ -15,6 +15,7 @@ import (
 )
 
 type State struct {
+	Version   int
 	Passwords map[string]string
 }
 
@@ -23,7 +24,6 @@ var tsLocalClient tailscale.LocalClient
 
 var httpProxyHandler http.Handler = http.HandlerFunc(
 	func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println(r.URL.Path[:4])
 		if r.URL.Path[:4] == "/ts/" {
 			// Check if tailscale is up
 			if !tailscaleUp() {
@@ -46,6 +46,20 @@ var httpProxyHandler http.Handler = http.HandlerFunc(
 					return
 				}
 			}
+		} else {
+			if *proxyNonTailscale {
+				// Proxy request
+				err := proxyRequest(r, &w, *resticServer)
+				if err != nil {
+					w.WriteHeader(http.StatusInternalServerError)
+					w.Write([]byte(err.Error()))
+					return
+				}
+			} else {
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Write([]byte("Not authorized."))
+				return
+			}
 		}
 	},
 )
@@ -64,6 +78,7 @@ func loadState() {
 	if err != nil {
 		// File does not exist
 		state = State{
+			Version:   1,
 			Passwords: map[string]string{},
 		}
 		saveState()
@@ -72,7 +87,7 @@ func loadState() {
 		defer file.Close()
 		decoder := json.NewDecoder(file)
 		err := decoder.Decode(&state)
-		if err != nil {
+		if err != nil || state.Version != 1 {
 			panic(err)
 		}
 	}
@@ -134,10 +149,10 @@ func transformRequest(request http.Request) (*http.Request, error) {
 		state.Passwords[uname] = randstr.Hex(128)
 		saveState()
 	}
-	if !htpasswdUserExists(uname) {
-		// Add user to htpasswd file
-		htpasswdAddUser(uname, state.Passwords[uname])
-	}
+	//if !htpasswdUserExists(uname) {
+	// Add user to htpasswd file
+	htpasswdAddUser(uname, state.Passwords[uname])
+	//}
 	basicAuth = "Basic " + base64.StdEncoding.EncodeToString([]byte(uname+":"+state.Passwords[uname]))
 
 	if basicAuth != "" {
