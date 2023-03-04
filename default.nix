@@ -1,20 +1,9 @@
-{ pkgs ? (
-    let
-      inherit (builtins) fetchTree fromJSON readFile;
-      inherit ((fromJSON (readFile ./flake.lock)).nodes) nixpkgs gomod2nix;
-    in
-    import (fetchTree nixpkgs.locked) {
-      overlays = [
-        (import "${fetchTree gomod2nix.locked}/overlay.nix")
-      ];
-    }
-  )
-}:
+{ pkgs ? import <nixpkgs> {} }:
 
-pkgs.buildGoApplication {
-  pname = "ts-restic-proxy";
-  version = "0.1";
-  pwd = ./.;
-  src = ./.;
-  modules = ./gomod2nix.toml;
-}
+  pkgs.buildGoModule rec {
+    pname = "ts-restic-proxy";
+    version = "0.0.1";
+    src = ./.;
+    vendorSha256 = null;
+    subPackages = [ "cmd/ts-restic-proxy" ];
+  }

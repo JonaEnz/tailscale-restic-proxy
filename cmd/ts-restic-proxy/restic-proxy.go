@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/thanhpk/randstr"
 	"tailscale.com/client/tailscale"
@@ -19,27 +21,35 @@ type State struct {
 	Passwords map[string]string
 }
 
-var state State
-var tsLocalClient tailscale.LocalClient
+const (
+	cacheTimeoutSpan = 15 * time.Minute
+)
+
+var (
+	state         State
+	tsLocalClient tailscale.LocalClient
+	cacheUsers    map[string][]string // map[ip][userResticUser,nodeResticUser]
+	cacheTimeout  map[string]int64
+)
 
 var httpProxyHandler http.Handler = http.HandlerFunc(
 	func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path[:4] == "/ts/" {
 			// Check if tailscale is up
-			if !tailscaleUp() {
+			if !TailscaleUp() {
 				w.WriteHeader(http.StatusServiceUnavailable)
 				w.Write([]byte("Tailscale is not running"))
 				return
 			} else {
 				// Transform request
-				request, err := transformRequest(*r)
+				request, err := TransformRequest(*r)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
 					w.Write([]byte(err.Error()))
 					return
 				}
 				// Proxy request
-				err = proxyRequest(request, &w, *resticServer)
+				err = ProxyRequest(request, &w, *resticServer)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
 					w.Write([]byte(err.Error()))
@@ -49,7 +59,7 @@ var httpProxyHandler http.Handler = http.HandlerFunc(
 		} else {
 			if *proxyNonTailscale {
 				// Proxy request
-				err := proxyRequest(r, &w, *resticServer)
+				err := ProxyRequest(r, &w, *resticServer)
 				if err != nil {
 					w.WriteHeader(http.StatusInternalServerError)
 					w.Write([]byte(err.Error()))
@@ -64,12 +74,39 @@ var httpProxyHandler http.Handler = http.HandlerFunc(
 	},
 )
 
-func tailscaleUp() bool {
+func TailscaleUp() bool {
 	_, err := tsLocalClient.Status(context.Background())
 	return err == nil
 }
 
-func loadState() {
+func AddToCache(ip string, tsUserResticUser string, tsNodeResticUser string) {
+	// Add ip to cache
+	ipWithoutPort := strings.Split(ip, ":")[0]
+	if cacheUsers == nil {
+		cacheUsers = map[string][]string{}
+		cacheTimeout = map[string]int64{}
+	}
+	cacheUsers[ipWithoutPort] = []string{tsUserResticUser, tsNodeResticUser}
+	cacheTimeout[ipWithoutPort] = time.Now().Add(cacheTimeoutSpan).Unix()
+}
+
+func CheckCache(ip string) ([]string, bool) {
+	// Check if ip is in cache
+	ipWithoutPort := strings.Split(ip, ":")[0]
+	users, ok := cacheUsers[ipWithoutPort]
+	if ok {
+		timeout, ok := cacheTimeout[ipWithoutPort]
+		if ok {
+			if timeout > time.Now().Unix() {
+				// Cache hit
+				return users, true
+			}
+		}
+	}
+	return nil, false
+}
+
+func LoadState() {
 	// Load state from json file
 	//If file does not exist, create it
 	//If file exists, load it
@@ -81,7 +118,7 @@ func loadState() {
 			Version:   1,
 			Passwords: map[string]string{},
 		}
-		saveState()
+		SaveState()
 	} else {
 		// File exists
 		defer file.Close()
@@ -93,7 +130,7 @@ func loadState() {
 	}
 }
 
-func saveState() {
+func SaveState() {
 	// Save state to json file
 	file, err := os.Create((*dataDir) + "/state.json")
 	if err != nil {
@@ -107,9 +144,15 @@ func saveState() {
 	}
 }
 
-func getNodeUserAndKey(ip string) (string, string, error) {
+func GetNodeUserAndKey(ipAndPort string) (string, string, error) {
+	// Check if ip is in cache
+	users, ok := CheckCache(ipAndPort)
+	if ok {
+		return users[0], users[1], nil
+	}
+
 	// Get node key and userId from IP
-	whosis, err := localClient.WhoIs(context.Background(), ip)
+	whosis, err := localClient.WhoIs(context.Background(), ipAndPort)
 	if err != nil {
 		return "", "", err
 	}
@@ -123,10 +166,11 @@ func getResticUsername(keyOrID string) string {
 	return string(hex.EncodeToString(hash.Sum(nil)))[0:8]
 }
 
-func transformRequest(request http.Request) (*http.Request, error) {
+func TransformRequest(request http.Request) (*http.Request, error) {
 	// Adapt the request for the proxy target
+	user, key, err := GetNodeUserAndKey(request.RemoteAddr)
+
 	path := request.URL.Path[3:] //Remove /ts
-	user, key, err := getNodeUserAndKey(request.RemoteAddr)
 	basicAuth := ""
 	if err != nil {
 		fmt.Println(err)
@@ -144,10 +188,13 @@ func transformRequest(request http.Request) (*http.Request, error) {
 		return &request, nil
 	}
 
+	// Add user to cache
+	AddToCache(request.RemoteAddr, getResticUsername(user), getResticUsername(key))
+
 	if _, ok := state.Passwords[uname]; !ok {
 		// Generate new password
-		state.Passwords[uname] = randstr.Hex(128)
-		saveState()
+		state.Passwords[uname] = randstr.Hex(32)
+		SaveState()
 	}
 	//if !htpasswdUserExists(uname) {
 	// Add user to htpasswd file
@@ -162,7 +209,7 @@ func transformRequest(request http.Request) (*http.Request, error) {
 
 }
 
-func proxyRequest(requestIn *http.Request, respOut *http.ResponseWriter, target string) error {
+func ProxyRequest(requestIn *http.Request, respOut *http.ResponseWriter, target string) error {
 	//Proxy the request to the target
 	requestOut, err := http.NewRequest(requestIn.Method, target+requestIn.URL.RequestURI(), requestIn.Body)
 	if err != nil {

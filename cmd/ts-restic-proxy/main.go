@@ -20,7 +20,7 @@ var localClient tailscale.LocalClient
 
 func main() {
 	flag.Parse()
-	loadState()
+	LoadState()
 
 	server.Addr = *listenAdress
 	server.Handler = httpProxyHandler
