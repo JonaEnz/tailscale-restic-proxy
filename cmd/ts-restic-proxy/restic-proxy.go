@@ -169,7 +169,6 @@ func getResticUsername(keyOrID string) string {
 func TransformRequest(request http.Request) (*http.Request, error) {
 	// Adapt the request for the proxy target
 	user, key, err := GetNodeUserAndKey(request.RemoteAddr)
-
 	path := request.URL.Path[3:] //Remove /ts
 	basicAuth := ""
 	if err != nil {
@@ -189,7 +188,7 @@ func TransformRequest(request http.Request) (*http.Request, error) {
 	}
 
 	// Add user to cache
-	AddToCache(request.RemoteAddr, getResticUsername(user), getResticUsername(key))
+	AddToCache(request.RemoteAddr, user, key)
 
 	if _, ok := state.Passwords[uname]; !ok {
 		// Generate new password

@@ -1,3 +1,4 @@
 /vendor
 state.json
 .htpasswd
+/result
