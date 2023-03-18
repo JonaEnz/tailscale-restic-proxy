@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -34,7 +35,7 @@ var (
 
 var httpProxyHandler http.Handler = http.HandlerFunc(
 	func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path[:4] == "/ts/" {
+		if len(r.URL.Path) >= 4 && r.URL.Path[:4] == "/ts/" {
 			// Check if tailscale is up
 			if !TailscaleUp() {
 				w.WriteHeader(http.StatusServiceUnavailable)
@@ -168,6 +169,10 @@ func getResticUsername(keyOrID string) string {
 
 func TransformRequest(request http.Request) (*http.Request, error) {
 	// Adapt the request for the proxy target
+	if len(request.URL.Path) < 8 || request.URL.Path[:3] != "/ts" { //
+		return nil, errors.New("Path doesn't start with /ts/<node/user>/")
+	}
+
 	user, key, err := GetNodeUserAndKey(request.RemoteAddr)
 	path := request.URL.Path[3:] //Remove /ts
 	basicAuth := ""
