@@ -1,6 +1,9 @@
 # Tailscale Restic Proxy
 An authentication proxy for the restic rest server using the Tailscale local client.
 
+## Project status
+✅ 🐶 Under active use by developer
+
 ## Features
 - Backups by Tailscale user or node without passwords
 - Compatible with Headscale
