@@ -1,6 +1,6 @@
 module github.com/JonaEnz/ts-restic-proxy
 
-go 1.18
+go 1.19
 
 require (
 	github.com/thanhpk/randstr v1.0.4
