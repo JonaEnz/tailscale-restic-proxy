@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -233,9 +234,7 @@ func ProxyRequest(requestIn *http.Request, respOut *http.ResponseWriter, target 
 	//Copy the response to the original response
 	(*respOut).Header().Set("Content-Type", responseIn.Header.Get("Content-Type"))
 	(*respOut).WriteHeader(responseIn.StatusCode)
-	buffer := make([]byte, responseIn.ContentLength)
-	_, _ = responseIn.Body.Read(buffer)
-	_, err = (*respOut).Write(buffer)
+	_, err = io.Copy(*respOut, responseIn.Body)
 	if err != nil {
 		return err
 	}
