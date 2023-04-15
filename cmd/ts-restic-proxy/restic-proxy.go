@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -69,6 +70,7 @@ var httpProxyHandler http.Handler = http.HandlerFunc(
 				}
 			} else {
 				w.WriteHeader(http.StatusUnauthorized)
+				log.Printf("Unauthorized access attempt from %s\n", r.RemoteAddr)
 				w.Write([]byte("Not authorized."))
 				return
 			}
@@ -224,17 +226,22 @@ func ProxyRequest(requestIn *http.Request, respOut *http.ResponseWriter, target 
 	requestOut.Method = requestIn.Method
 	requestOut.URL.Path = requestIn.URL.Path
 	requestOut.Proto = requestIn.Proto
-	//requestOut.Host = requestIn.Host
 	responseIn, err := http.DefaultClient.Do(requestOut)
 	if err != nil {
 		return err
 	}
-	defer responseIn.Body.Close()
 
 	//Copy the response to the original response
+	defer responseIn.Body.Close()
 	(*respOut).Header().Set("Content-Type", responseIn.Header.Get("Content-Type"))
-	(*respOut).WriteHeader(responseIn.StatusCode)
-	_, err = io.Copy(*respOut, responseIn.Body)
+	(*respOut).Header().Set("Content-Length", fmt.Sprintf("%d", responseIn.ContentLength))
+
+	data, err := io.ReadAll(responseIn.Body)
+	if err != nil {
+		return err
+	}
+
+	_, err = (*respOut).Write([]byte(data))
 	if err != nil {
 		return err
 	}
