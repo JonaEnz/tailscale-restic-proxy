@@ -235,6 +235,7 @@ func ProxyRequest(requestIn *http.Request, respOut *http.ResponseWriter, target 
 	defer responseIn.Body.Close()
 	(*respOut).Header().Set("Content-Type", responseIn.Header.Get("Content-Type"))
 	(*respOut).Header().Set("Content-Length", fmt.Sprintf("%d", responseIn.ContentLength))
+	(*respOut).WriteHeader(responseIn.StatusCode)
 
 	data, err := io.ReadAll(responseIn.Body)
 	if err != nil {
