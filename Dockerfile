@@ -1,4 +1,4 @@
-FROM golang:1.19-alpine as build
+FROM golang:1.20-alpine as build
 WORKDIR /app
 
 COPY go.mod ./
@@ -22,4 +22,4 @@ COPY --from=build /app/out /
 
 EXPOSE 8000/tcp
 
-ENTRYPOINT /ts-restic-proxy -restic-rest-server="$RESTIC_SERVER_URL" -data-dir="/data"
+ENTRYPOINT /ts-restic-proxy -restic-rest-server="$RESTIC_SERVER_URL" -data-dir="/data" -htpasswd-file="/.htpasswd"

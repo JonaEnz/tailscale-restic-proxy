@@ -1,0 +1,22 @@
+version: '3'
+services:
+  rest_server:
+    container_name: rest_server
+    image: restic/rest-server
+    volumes:
+      - './data:/data'
+    expose:
+      - "80"
+  ts-restic-proxy:
+    network_mode: host
+    container_name: tailscale_proxy
+    image: ts-restic-proxy
+    environment:
+      RESTIC_SERVER_URL: http://rest_server:80
+    volumes:
+      - "./proxy-data:/data"
+      - type: bind
+        source: ./data/.htpasswd
+        target: /.htpasswd
+    ports:
+      - "8000:8000"
