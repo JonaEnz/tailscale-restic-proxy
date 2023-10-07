@@ -12,19 +12,10 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
-	"time"
 
 	"github.com/thanhpk/randstr"
 	"tailscale.com/client/tailscale"
 )
-
-type Repository struct {
-	Path         string    `json:"path"`
-	LastRead     time.Time `json:"lastRead"`
-	LastWrite    time.Time `json:"lastWrite"`
-	LastSnapshot time.Time `json:"lastSnapshot"`
-}
 
 type State struct {
 	Version      int
@@ -32,20 +23,19 @@ type State struct {
 	Repositories map[string]Repository
 }
 
-const (
-	cacheTimeoutSpan = 15 * time.Minute
-)
-
 var (
 	state         State
 	tsLocalClient tailscale.LocalClient
-	cacheUsers    map[string][]string // map[ip][userResticUser,nodeResticUser]
-	cacheTimeout  map[string]int64
 )
 
 var httpProxyHandler http.Handler = http.HandlerFunc(
 	func(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("%s Request: %s\n", r.Method, r.URL.Path)
+		if r.URL.Path == "/repos/json" {
+			// Return state as json
+			json.NewEncoder(w).Encode(state.Repositories)
+			return
+		}
 		if len(r.URL.Path) >= 4 && r.URL.Path[:4] == "/ts/" {
 			// Check if tailscale is up
 			if !TailscaleUp() {
@@ -93,33 +83,6 @@ func TailscaleUp() bool {
 	return err == nil
 }
 
-func AddToCache(ip string, tsUserResticUser string, tsNodeResticUser string) {
-	// Add ip to cache
-	ipWithoutPort := strings.Split(ip, ":")[0]
-	if cacheUsers == nil {
-		cacheUsers = map[string][]string{}
-		cacheTimeout = map[string]int64{}
-	}
-	cacheUsers[ipWithoutPort] = []string{tsUserResticUser, tsNodeResticUser}
-	cacheTimeout[ipWithoutPort] = time.Now().Add(cacheTimeoutSpan).Unix()
-}
-
-func CheckCache(ip string) ([]string, bool) {
-	// Check if ip is in cache
-	ipWithoutPort := strings.Split(ip, ":")[0]
-	users, ok := cacheUsers[ipWithoutPort]
-	if ok {
-		timeout, ok := cacheTimeout[ipWithoutPort]
-		if ok {
-			if timeout > time.Now().Unix() {
-				// Cache hit
-				return users, true
-			}
-		}
-	}
-	return nil, false
-}
-
 func LoadState() {
 	// Load state from json file
 	//If file does not exist, create it
@@ -163,91 +126,6 @@ func SaveState() {
 	err = json.NewEncoder(file).Encode(state)
 	if err != nil {
 		panic(err)
-	}
-}
-
-func getRepository(path string) Repository {
-	// Get repository from state
-	repository, ok := state.Repositories[path]
-	if ok {
-		return repository
-	}
-	return Repository{
-		Path:         path,
-		LastRead:     time.Unix(0, 0),
-		LastWrite:    time.Unix(0, 0),
-		LastSnapshot: time.Unix(0, 0),
-	}
-}
-
-func (r *Repository) repositoryRead() {
-	if time.Since(r.LastRead) < 5*time.Second {
-		return
-	}
-	// Update lastRead
-	r.LastRead = time.Now()
-	updateRepository(*r)
-}
-
-func (r *Repository) repositoryWritten() {
-	if time.Since(r.LastWrite) < 5*time.Second {
-		return
-	}
-
-	r.LastWrite = time.Now()
-	updateRepository(*r)
-}
-
-func (r *Repository) repositorySnapshot() {
-	if time.Since(r.LastSnapshot) < 5*time.Second {
-		return
-	}
-	r.LastSnapshot = time.Now()
-	updateRepository(*r)
-}
-func updateRepository(repository Repository) {
-	// Update repository in state
-	state.Repositories[repository.Path] = repository
-	SaveState()
-}
-
-func checkRequestForRepositoryUpdate(r *http.Request) {
-	validTypes := [...]string{"data", "keys", "snapshots", "index", "config", "locks"}
-	repoName := r.URL.Path[1:]
-	if repoName[len(repoName)-1:] == "/" {
-		repoName = repoName[:len(repoName)-1]
-	}
-	// Remove last segment of path
-	splitName := strings.Split(repoName, "/")
-	// Iterate backwards over path segments until we find a valid restic request type
-	resticRequestType, typeIndex := "", -1
-	for i := len(splitName) - 1; i >= 0; i-- {
-		for _, validType := range validTypes {
-			if splitName[i] == validType {
-				resticRequestType = validType
-				typeIndex = i
-				break
-			}
-		}
-	}
-	if resticRequestType != "" {
-		// Request type found, remove everything after it
-		repoName = strings.Join(splitName[:typeIndex], "/")
-	} else if splitName[len(splitName)-1] != "config" {
-		// If no request type is found, remove nothing
-		repoName = strings.Join(splitName, "/")
-	} else {
-		// If config is requested, remove config from path
-		repoName = strings.Join(splitName[:len(splitName)-1], "/")
-	}
-
-	repository := getRepository(repoName)
-	if r.Method != "POST" || resticRequestType == "locks" {
-		repository.repositoryRead()
-	} else if resticRequestType == "snapshots" {
-		repository.repositorySnapshot()
-	} else {
-		repository.repositoryWritten()
 	}
 }
 
