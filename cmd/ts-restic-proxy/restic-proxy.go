@@ -12,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"text/template"
 
 	"github.com/thanhpk/randstr"
 	"tailscale.com/client/tailscale"
@@ -31,7 +32,25 @@ var (
 var httpProxyHandler http.Handler = http.HandlerFunc(
 	func(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("%s Request: %s\n", r.Method, r.URL.Path)
-		if r.URL.Path == "/repos/json" {
+		if r.URL.Path == "/status" {
+			// Render state as html
+			tmpl, err := template.ParseFiles("cmd/ts-restic-proxy/templates/status.html")
+			if err == nil {
+				repoPrints := []RepoPrint{}
+				for _, repo := range state.Repositories {
+					repoPrints = append(repoPrints, repo.Print())
+				}
+				err = tmpl.Execute(w, repoPrints)
+			}
+
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				w.Write([]byte(err.Error()))
+				return
+			}
+			return
+		}
+		if r.URL.Path == "/status/json" {
 			// Return state as json
 			json.NewEncoder(w).Encode(state.Repositories)
 			return

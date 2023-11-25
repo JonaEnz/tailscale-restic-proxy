@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -11,6 +12,33 @@ type Repository struct {
 	LastRead     time.Time `json:"lastRead"`
 	LastWrite    time.Time `json:"lastWrite"`
 	LastSnapshot time.Time `json:"lastSnapshot"`
+}
+
+type RepoPrint struct {
+	Path         string
+	LastRead     string
+	LastWrite    string
+	LastSnapshot string
+}
+
+func GetTimeSince(t time.Time) string {
+	if t.Unix() < 60*60*24 {
+		return "Never"
+	}
+	days := int(time.Since(t).Round(time.Hour*24).Hours() / 24)
+
+	t = t.Add(time.Hour * 24 * time.Duration(days))
+	return fmt.Sprintf("%dd%s", days, time.Since(t).Round(time.Minute).String())
+}
+
+func (r *Repository) Print() RepoPrint {
+
+	return RepoPrint{
+		Path:         r.Path,
+		LastRead:     GetTimeSince(r.LastRead),
+		LastWrite:    GetTimeSince(r.LastWrite),
+		LastSnapshot: GetTimeSince(r.LastSnapshot),
+	}
 }
 
 func (r *Repository) repositoryRead() {

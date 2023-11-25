@@ -1,0 +1,21 @@
+<h1>Backups Status</h1>
+<table>
+    <thead>
+        <tr>
+            <th>Path</th>
+            <th>Last Read</th>
+            <th>Last Write</th>
+            <th>Last Snapshot</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{ range $repo := . }}
+        <tr>
+            <td>{{ $repo.Path }}</td>
+            <td>{{ $repo.LastRead }}</td>
+            <td>{{ $repo.LastWrite }}</td>
+            <td>{{ $repo.LastSnapshot }}</td>
+        </tr>
+        {{ end }}
+    </tbody>
+</table>
