@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/sha256"
+	_ "embed"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -29,12 +30,16 @@ var (
 	tsLocalClient tailscale.LocalClient
 )
 
+//go:embed templates/status.html
+var statusHtml string
+
 var httpProxyHandler http.Handler = http.HandlerFunc(
 	func(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("%s Request: %s\n", r.Method, r.URL.Path)
 		if r.URL.Path == "/status" {
+
 			// Render state as html
-			tmpl, err := template.ParseFiles("cmd/ts-restic-proxy/templates/status.html")
+			tmpl, err := template.New("status").Parse(statusHtml)
 			if err == nil {
 				repoPrints := []RepoPrint{}
 				for _, repo := range state.Repositories {
