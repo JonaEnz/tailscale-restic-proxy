@@ -11,10 +11,10 @@ services:
     image: ts-restic-proxy
     environment:
       RESTIC_SERVER_URL: http://rest_server:80
-      TAILSCALE_AUTH_KEY: a8498d0dcc0aa46cf5cc7553780579ddb8d46f933b380837
-      TAILSCALE_CONTROL_SERVER: https://headscale.jonaenz.de
+      TAILSCALE_AUTH_KEY: <your-auth-key-here>
+      TAILSCALE_CONTROL_SERVER: https://login.tailscale.com
       TAILSCALE_HOSTNAME: restic-server
-      
+
     volumes:
       - "./proxy-data:/data"
       - type: bind

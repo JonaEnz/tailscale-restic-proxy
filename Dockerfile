@@ -5,7 +5,7 @@ COPY go.mod ./
 COPY go.sum ./
 RUN go mod download
 
-COPY cmd/ts-restic-proxy/*.go ./cmd/ts-restic-proxy/
+COPY cmd/ts-restic-proxy ./cmd/ts-restic-proxy/
 
 RUN mkdir ./out
 RUN go build -o ./out ./cmd/ts-restic-proxy
