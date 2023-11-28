@@ -12,7 +12,6 @@ RUN go build -o ./out ./cmd/ts-restic-proxy
 
 FROM alpine:latest
 
-ENV RESTIC_SERVER_URL="http://127.0.0.1:9234"
 
 RUN mkdir /data
 
@@ -22,4 +21,4 @@ COPY --from=build /app/out /
 
 EXPOSE 8000/tcp
 
-ENTRYPOINT /ts-restic-proxy -restic-rest-server="$RESTIC_SERVER_URL" -data-dir="/data" -htpasswd-file="/.htpasswd"
+CMD [ "sh", "-c", "./ts-restic-proxy", "-restic-rest-server ${RESTIC_SERVER_URL}", "-data-dir /data", "-htpasswd-file /.htpasswd", "-ts-auth-key ${TAILSCALE_AUTH_KEY}", "-ts-login-server ${TAILSCALE_CONTROL_SERVER}", "-hostname ${TAILSCALE_HOSTNAME}" ]
