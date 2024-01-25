@@ -4,13 +4,12 @@ go 1.21
 
 require (
 	github.com/thanhpk/randstr v1.0.6
-	golang.org/x/crypto v0.15.0
+	golang.org/x/crypto v0.17.0
 	tailscale.com v1.54.0
 )
 
 require (
 	filippo.io/edwards25519 v1.0.0 // indirect
-	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/akutz/memconn v0.1.0 // indirect
 	github.com/alexbrainman/sspi v0.0.0-20231016080023-1a75b4708caa // indirect
 	github.com/aws/aws-sdk-go-v2 v1.21.0 // indirect
@@ -76,8 +75,8 @@ require (
 	golang.org/x/mod v0.14.0 // indirect
 	golang.org/x/net v0.18.0 // indirect
 	golang.org/x/sync v0.5.0 // indirect
-	golang.org/x/sys v0.14.1-0.20231108175955-e4099bfacb8c // indirect
-	golang.org/x/term v0.14.0 // indirect
+	golang.org/x/sys v0.15.0 // indirect
+	golang.org/x/term v0.15.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.15.0 // indirect
